@@ -1,0 +1,30 @@
+# aicontext config (contains API keys — never commit)
+.aicontext.env
+
+# Legacy: ignore project .env only if it exists
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+.claude
