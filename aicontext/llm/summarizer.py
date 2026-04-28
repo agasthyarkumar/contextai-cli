@@ -1,22 +1,22 @@
 """LLM provider abstraction.
 
 Supported backends:
-  - groq    → Groq Cloud (default)
-  - ollama  → local Ollama instance (OpenAI-compatible /v1 endpoint)
+  - groq   → Groq Cloud (default)
+  - ollama → local Ollama instance (OpenAI-compatible /v1 endpoint)
 
-Adding a new provider: implement a call_<name>(prompt, config) -> str function
-and register it in the PROVIDERS dict at the bottom.
+Adding a new provider: implement call_<name>(prompt, config) -> str
+and register it in PROVIDERS below.
 """
 
 import json as _json
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 # ── Groq ──────────────────────────────────────────────────────────────────────
 
 def call_groq(prompt: str, config: dict) -> str:
     try:
-        from groq import Groq
+        from groq import Groq, AuthenticationError, RateLimitError, APIStatusError
     except ImportError:
         raise RuntimeError("groq package missing — run: pip install groq")
 
@@ -28,11 +28,8 @@ def call_groq(prompt: str, config: dict) -> str:
             "  2. Replace 'your_groq_api_key_here' with your real key from console.groq.com"
         )
 
-    from groq import AuthenticationError, RateLimitError, APIStatusError
-
-    client = Groq(api_key=api_key)
     try:
-        response = client.chat.completions.create(
+        response = Groq(api_key=api_key).chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=config.get("groq_model", "llama-3.3-70b-versatile"),
             temperature=0.1,
@@ -51,6 +48,7 @@ def call_groq(prompt: str, config: dict) -> str:
         )
     except APIStatusError as exc:
         raise RuntimeError(f"Groq API error {exc.status_code}: {exc.message}") from exc
+
     return response.choices[0].message.content
 
 
@@ -75,8 +73,7 @@ def call_ollama(prompt: str, config: dict) -> str:
     )
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
-            data = _json.loads(resp.read())
-            return data["choices"][0]["message"]["content"]
+            return _json.loads(resp.read())["choices"][0]["message"]["content"]
     except Exception as exc:
         raise RuntimeError(f"Ollama request failed: {exc}") from exc
 
@@ -92,43 +89,36 @@ PROVIDERS = {
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def summarize(prompt: str, config: dict) -> Dict[str, Any]:
-    """Call the configured LLM and return parsed JSON context dict."""
+    """Call the configured LLM and return a parsed JSON context dict."""
     provider = config.get("provider", "groq")
     caller = PROVIDERS.get(provider)
     if caller is None:
-        supported = ", ".join(PROVIDERS)
         raise RuntimeError(
-            f"Unknown LLM provider '{provider}'. Supported: {supported}"
+            f"Unknown LLM provider '{provider}'. Supported: {', '.join(PROVIDERS)}"
         )
-
-    raw = caller(prompt, config)
-    return _parse_json(raw)
+    return _parse_json(caller(prompt, config))
 
 
 def _parse_json(raw: str) -> Dict[str, Any]:
-    """Extract JSON from the LLM response, stripping markdown fences if needed."""
+    """Extract JSON from an LLM response, stripping markdown fences if present."""
     text = raw.strip()
 
     # Strip ```json ... ``` or ``` ... ``` wrappers
     if "```" in text:
-        parts = text.split("```")
-        # parts[1] is inside the first fence pair
-        for part in parts[1::2]:  # odd indices are inside fences
-            candidate = part.lstrip("json").strip()
+        for part in text.split("```")[1::2]:   # odd indices = inside fences
             try:
-                return _json.loads(candidate)
+                return _json.loads(part.lstrip("json").strip())
             except _json.JSONDecodeError:
                 continue
 
-    # Try to parse the whole response as JSON
+    # Try the whole response
     try:
         return _json.loads(text)
     except _json.JSONDecodeError:
         pass
 
     # Last resort: find the outermost { … }
-    start = text.find("{")
-    end = text.rfind("}") + 1
+    start, end = text.find("{"), text.rfind("}") + 1
     if start != -1 and end > start:
         try:
             return _json.loads(text[start:end])
@@ -136,6 +126,5 @@ def _parse_json(raw: str) -> Dict[str, Any]:
             pass
 
     raise RuntimeError(
-        f"Could not parse JSON from LLM response.\n"
-        f"First 400 chars: {raw[:400]}"
+        f"Could not parse JSON from LLM response.\nFirst 400 chars: {raw[:400]}"
     )

@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from typing import List, Set
 
-# Extensions we actively want to index
 CODE_EXTENSIONS: Set[str] = {
     ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs",
     ".java", ".cpp", ".c", ".h", ".rb", ".php", ".swift",
@@ -37,18 +36,15 @@ def collect_files(
     collected: List[Path] = []
 
     for dirpath, dirnames, filenames in os.walk(root):
-        # Prune ignored dirs in-place so os.walk skips their subtrees
+        # Prune ignored dirs in-place so os.walk skips their subtrees entirely
         dirnames[:] = [
             d for d in dirnames
             if d not in ignore_dirs and not d.startswith(".")
         ]
-
         for name in filenames:
             p = Path(dirpath) / name
             ext = p.suffix.lower()
-            if ext in ignore_extensions:
-                continue
-            if ext not in CODE_EXTENSIONS:
+            if ext in ignore_extensions or ext not in CODE_EXTENSIONS:
                 continue
             try:
                 if p.stat().st_size > max_bytes:
@@ -61,7 +57,7 @@ def collect_files(
 
 
 def read_file_safe(filepath: Path, max_size_kb: int = 100) -> str:
-    """Read a file up to the size limit; truncate gracefully on overflow."""
+    """Read a file up to the size limit; append a truncation notice on overflow."""
     max_bytes = max_size_kb * 1024
     try:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as fh:
@@ -75,9 +71,5 @@ def read_file_safe(filepath: Path, max_size_kb: int = 100) -> str:
 
 def filter_to_existing(rel_paths: List[str], root: Path) -> List[Path]:
     """Convert relative path strings to absolute Paths, keeping only real files."""
-    result: List[Path] = []
-    for rel in rel_paths:
-        p = root / rel
-        if p.exists() and p.is_file():
-            result.append(p)
-    return result
+    # is_file() returns False for missing paths — no need for a separate exists() call
+    return [p for rel in rel_paths if (p := root / rel).is_file()]

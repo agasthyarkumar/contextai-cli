@@ -3,7 +3,6 @@
 import shutil
 import stat
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -307,7 +306,6 @@ def delete(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
 ) -> None:
     """Remove all aicontext source code and generated files from this project."""
-    import shutil
     from .config import load_config, AICONTEXT_ENV_FILE
 
     repo = Path.cwd()
