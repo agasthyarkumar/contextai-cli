@@ -18,6 +18,8 @@
    - [watch](#73-aicontext-watch)
    - [show](#74-aicontext-show)
    - [clean](#75-aicontext-clean)
+   - [ignore](#76-aicontext-ignore)
+   - [delete](#77-aicontext-delete)
 8. [Output files](#8-output-files)
 9. [Using context with an LLM](#9-using-context-with-an-llm)
 10. [LLM providers](#10-llm-providers)
@@ -99,47 +101,97 @@ Python packages installed automatically:
 
 ## 4. Installation
 
-### Option A — editable install (recommended for development)
+aicontext is installed **once globally** on your machine. The source code lives in a single location and is never copied into the projects you track.
+
+### Step 1 — Clone to a permanent home
+
+Choose a stable directory outside any project — you will leave the source here permanently.
 
 ```bash
-git clone <repo-url>
-cd contextai-cli
+# Good locations
+git clone <repo-url> ~/tools/contextai-cli
+# or
+git clone <repo-url> ~/.local/share/contextai-cli
+```
+
+> Do **not** clone inside a project you want to track. The source stays here forever.
+
+### Step 2 — Install the CLI globally
+
+```bash
+cd ~/tools/contextai-cli
 pip install -e .
 ```
 
-With file-watching support:
+The `-e` (editable) flag means pip links to this folder, so any future `git pull` inside it instantly updates the CLI without reinstalling.
+
+With optional file-watching support:
 
 ```bash
 pip install -e ".[watch]"
 ```
 
-### Option B — install directly from the folder
-
-```bash
-pip install /path/to/contextai-cli
-```
-
-### Verify the install
+### Step 3 — Verify
 
 ```bash
 aicontext --help
 ```
 
-You should see the list of commands printed to the terminal.
+You should see all commands listed. The `aicontext` command is now available in every terminal session on this machine.
+
+### What the install does NOT do
+
+- It does **not** copy any files into your projects.
+- It does **not** modify any project you want to track.
+- It only registers the `aicontext` binary in your shell's PATH.
+
+### Updating aicontext
+
+```bash
+cd ~/tools/contextai-cli
+git pull          # get latest changes
+# no reinstall needed thanks to -e flag
+```
+
+### Uninstalling
+
+```bash
+pip uninstall aicontext
+# optionally remove the source too
+rm -rf ~/tools/contextai-cli
+```
 
 ---
 
 ## 5. First-time setup
 
-Run these steps once per project you want to track.
+Run these steps **once per project** you want to track. You only need to install aicontext once (Section 4) — these steps just activate it inside a specific project.
+
+### Overview
+
+```
+~/tools/contextai-cli/   ← aicontext source, installed once, never touched again
+         │
+         │  (global pip install)
+         ▼
+      aicontext command available everywhere
+         │
+         ├──▶  cd ~/projects/my-django-app  →  aicontext init  →  context files
+         ├──▶  cd ~/projects/my-react-app   →  aicontext init  →  context files
+         └──▶  cd ~/projects/my-go-service  →  aicontext init  →  context files
+```
 
 ### Step 1 — Navigate to your project
 
 ```bash
-cd /path/to/your/project
+cd /path/to/your-project
 ```
 
-The project must be a git repository (`git init` if it is not).
+The project must be a git repository. If it is not:
+
+```bash
+git init && git add . && git commit -m "initial commit"
+```
 
 ### Step 2 — Run init
 
@@ -147,20 +199,18 @@ The project must be a git repository (`git init` if it is not).
 aicontext init
 ```
 
-This does two things:
+This does two things inside **your project**:
 
-1. Copies `.aicontext.env.example` → `.aicontext.env` in the current directory.
-2. Installs a `post-commit` hook at `.git/hooks/post-commit`.
+1. Creates `.aicontext.env` (copied from the example template — holds your API key).
+2. Installs `.git/hooks/post-commit` so context updates automatically on every commit.
+
+Nothing is added to the aicontext source folder.
 
 ### Step 3 — Add your API key
 
-Open `.aicontext.env` in any editor:
-
 ```bash
-nano .aicontext.env   # or code .aicontext.env, vim, etc.
+nano .aicontext.env   # or: code .aicontext.env, vim, etc.
 ```
-
-Set your Groq API key:
 
 ```env
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxx
@@ -174,7 +224,7 @@ Get a free key at **console.groq.com → API Keys**.
 aicontext update --scan
 ```
 
-This scans up to 30 files across the project and writes `context.json` and `context.md`.
+This walks the filesystem (not git history) so it catches all files even if they are not committed yet.
 
 ```
 Updating context…
@@ -183,7 +233,25 @@ Updating context…
 
 ### Step 5 — Done
 
-From this point on, every `git commit` automatically triggers `aicontext update` and keeps the context files fresh.
+Every `git commit` now automatically runs `aicontext update` and keeps `context.json` and `context.md` fresh. You never need to run anything manually again.
+
+### What your project looks like after setup
+
+```
+your-project/
+  .aicontext.env          ← API key config      (git-ignored, stays local)
+  .git/hooks/post-commit  ← auto-update hook    (not committed)
+  context.json            ← generated context   (commit this to share with team)
+  context.md              ← generated context   (commit this to share with team)
+
+  src/                    ← your code, untouched
+  package.json            ← your code, untouched
+  ...
+```
+
+### Repeating for another project
+
+Just `cd` to the next project and repeat from Step 1. Each project gets its own `.aicontext.env` and `context.json`. They are completely independent.
 
 ---
 
@@ -463,6 +531,93 @@ aicontext clean --all -y
 - Without `-y`, you must explicitly type `y` to proceed.
 - If no aicontext files are found, the command exits immediately without prompting.
 - `--all` removes `.aicontext.env` which contains your API key. Re-run `aicontext init` to recreate it.
+
+---
+
+### 7.6 `aicontext ignore`
+
+**Purpose:** Add aicontext's files to the **current project's** `.gitignore` so they are excluded from git without being deleted from disk.
+
+```
+Usage: aicontext ignore [OPTIONS]
+
+Options:
+  --help
+```
+
+**What it adds to `.gitignore`:**
+
+```
+aicontext/
+scripts/
+setup.py
+requirements.txt
+.aicontext.env.example
+USER_MANUAL.md
+```
+
+**When to use this:**
+
+Only relevant if you manually copied the aicontext source files into a project (not the normal install flow). If you installed via `pip install -e ~/tools/contextai-cli`, none of those source files are in your project and this command is not needed.
+
+**Example:**
+
+```bash
+aicontext ignore
+```
+
+> This command is blocked inside the aicontext source repo itself to prevent accidents.
+
+---
+
+### 7.7 `aicontext delete`
+
+**Purpose:** Remove all aicontext-added files from the **current project**. The aicontext source in `~/tools/contextai-cli` is **never touched**.
+
+```
+Usage: aicontext delete [OPTIONS]
+
+Options:
+  -y, --yes   Skip confirmation prompt
+  --help
+```
+
+**What gets removed from the current project:**
+
+| File / Directory | Description |
+|---|---|
+| `context.json` | Generated context |
+| `context.md` | Generated context |
+| `.aicontext.env` | Your API key config |
+| `.git/hooks/post-commit` | Auto-update hook |
+| `aicontext/` | Source dir (only if manually copied) |
+| `scripts/` | Source dir (only if manually copied) |
+| `setup.py`, `requirements.txt`, etc. | Source files (only if manually copied) |
+
+**What is NEVER removed:**
+
+- Your project's own source code
+- The aicontext installation at `~/tools/contextai-cli`
+- Any other globally installed tools
+
+**Examples:**
+
+```bash
+# Interactive — shows list, asks to confirm
+aicontext delete
+
+# Non-interactive — useful in teardown scripts
+aicontext delete -y
+```
+
+After running, optionally uninstall the CLI globally:
+
+```bash
+pip uninstall aicontext
+rm -rf ~/tools/contextai-cli   # remove source if you want
+```
+
+> This command is blocked inside the aicontext source repo itself to prevent accidents.
 
 ---
 
@@ -906,36 +1061,50 @@ Or pass the API key as an environment variable in your CI config:
 
 ## 15. Project file reference
 
+### aicontext source (lives in one place on your machine)
+
 ```
-contextai-cli/
+~/tools/contextai-cli/              ← cloned once, never moved
 │
-├── aicontext/                   Python package
-│   ├── __init__.py              Package version
-│   ├── cli.py                   All CLI commands (init/update/watch/show/clean)
-│   ├── orchestrator.py          Pipeline logic (run_update, run_full_scan)
-│   ├── config.py                Loads .aicontext.env into a config dict
+├── aicontext/                      Python package (the CLI itself)
+│   ├── __init__.py                 Package version
+│   ├── cli.py                      Commands: init/update/watch/show/clean/ignore/delete
+│   ├── orchestrator.py             Pipeline logic (run_update, run_full_scan)
+│   ├── config.py                   Loads .aicontext.env into a config dict
 │   │
 │   ├── analyzers/
-│   │   ├── git_diff.py          git diff / ls-files / rev-parse wrappers
-│   │   └── file_collector.py    Project file walker + safe file reader
+│   │   ├── git_diff.py             git diff / ls-files / rev-parse wrappers
+│   │   └── file_collector.py       Project file walker + safe file reader
 │   │
 │   ├── llm/
-│   │   ├── prompt_builder.py    Prompt templates (init-scan & incremental)
-│   │   └── summarizer.py        Groq + Ollama callers, JSON fence stripper
+│   │   ├── prompt_builder.py       Prompt templates (init-scan & incremental)
+│   │   └── summarizer.py           Groq + Ollama callers, JSON fence stripper
 │   │
 │   └── storage/
-│       └── context_writer.py    load / merge / save context.json + context.md
+│       └── context_writer.py       load / merge / save context.json + context.md
 │
 ├── scripts/
-│   └── update_context.py        Standalone runner for git hooks and CI
+│   └── update_context.py           Standalone runner for git hooks and CI
 │
-├── .aicontext.env.example       Template for user configuration
-├── .gitignore                   Ignores .aicontext.env (has secrets)
-├── requirements.txt             Pinned dependencies
-├── setup.py                     Package install + entry point
-├── README.md                    Quick-start reference
-└── USER_MANUAL.md               This file
+├── .aicontext.env.example          Template copied to each project by aicontext init
+├── .gitignore
+├── requirements.txt
+├── setup.py                        Registers the global `aicontext` command
+├── README.md
+└── USER_MANUAL.md                  This file
 ```
+
+### What aicontext adds to each tracked project
+
+```
+your-project/                       ← your existing repo, unchanged
+  .aicontext.env                    ← created by: aicontext init  (git-ignored)
+  .git/hooks/post-commit            ← created by: aicontext init
+  context.json                      ← created by: aicontext update (commit this)
+  context.md                        ← created by: aicontext update (commit this)
+```
+
+Nothing else is ever written to your projects.
 
 ---
 

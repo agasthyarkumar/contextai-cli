@@ -22,19 +22,28 @@ Only **changed files** are sent to the LLM on each run — keeping costs low.
 
 ## Quick start
 
-### 1. Install
+### 1. Clone and install once (anywhere on your system)
 
 ```bash
+# Clone to a permanent home — NOT inside a project you want to track
+git clone <repo-url> ~/tools/contextai-cli
+cd ~/tools/contextai-cli
 pip install -e .
-# or with file-watching support
+
+# Optional: file-watching support
 pip install -e ".[watch]"
+
+# Verify
+aicontext --help
 ```
 
-### 2. Set up in your project
+> `aicontext` is now a global command available in every terminal session, just like `git` or `pip`. The source code stays in `~/tools/contextai-cli` and is never copied into your projects.
+
+### 2. Set up in any project you want to track
 
 ```bash
-cd /your/project
-aicontext init        # creates .aicontext.env + installs git post-commit hook
+cd /path/to/your-project   # any existing git repo
+aicontext init             # creates .aicontext.env + installs post-commit hook
 ```
 
 Edit `.aicontext.env` and set your key:
@@ -54,6 +63,20 @@ aicontext update --scan   # full project scan (first time)
 ```
 
 After that, every `git commit` triggers an automatic incremental update.
+
+### What gets added to each project
+
+```
+your-project/
+  .aicontext.env          ← your API key config  (git-ignored)
+  .git/hooks/post-commit  ← auto-update hook
+  context.json            ← generated context    (commit this)
+  context.md              ← generated context    (commit this)
+
+  # all your own code is untouched
+```
+
+The aicontext source code (`~/tools/contextai-cli`) is **never copied** into your projects.
 
 ---
 
@@ -110,14 +133,16 @@ aicontext ignore   # appends aicontext source entries to .gitignore
 ```
 
 ### `aicontext delete`
-Permanently remove all aicontext source code and generated files from the project. Your project's own files are never touched.
+Remove all aicontext-added files from the **current project** (generated files + config + git hook). Your project's own code and the aicontext source in `~/tools/contextai-cli` are **never touched**.
 
 ```bash
 aicontext delete      # shows what will be deleted, asks for confirmation
 aicontext delete -y   # non-interactive, no prompt
 ```
 
-After deletion, uninstall the CLI globally with:
+> This command is blocked if you run it inside the aicontext source repo itself.
+
+To also uninstall the CLI globally:
 
 ```bash
 pip uninstall aicontext
