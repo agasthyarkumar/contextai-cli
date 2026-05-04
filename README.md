@@ -1,3 +1,7 @@
+## 🔍 Keywords
+
+LLM CLI tool, code context generator, AI developer tools, prompt engineering, git-based context, token optimization
+
 # ⚡ aicontext
 
 > Keep your codebase in LLM memory — automatically.
