@@ -1,8 +1,30 @@
-# aicontext
+# ⚡ aicontext
 
-A local developer tool that automatically analyses your codebase and maintains a compressed context file to reduce token usage when working with LLMs.
+> Keep your codebase in LLM memory — automatically.
 
-## How it works
+Stop pasting your entire codebase into ChatGPT.
+**aicontext** continuously maintains a compressed, up-to-date context of your project — so you can work with LLMs efficiently and at low cost.
+
+---
+
+## 🤔 Why aicontext?
+
+Working with LLMs on real projects is painful:
+
+* ❌ Repeatedly copying large chunks of code
+* ❌ Hitting token limits
+* ❌ Context becoming outdated after every change
+
+**aicontext solves this by:**
+
+* ✅ Maintaining a compressed, always-updated project context
+* ✅ Sending only changed files to the LLM
+* ✅ Reducing token usage drastically
+* ✅ Integrating directly into your git workflow
+
+---
+
+## 🔥 Key Idea
 
 ```
 git commit → post-commit hook → aicontext update
@@ -11,181 +33,201 @@ git commit → post-commit hook → aicontext update
                                       │
                               read changed files
                                       │
-                              call Groq LLM (llama-3.3-70b)
+                              call LLM (Groq / Ollama)
                                       │
                          merge into context.json + context.md
 ```
 
-Only **changed files** are sent to the LLM on each run — keeping costs low.
+🔥 **Only changed files are sent to the LLM — keeping costs extremely low.**
 
 ---
 
-## Quick start
-
-### 1. Clone and install once (anywhere on your system)
+## ⚡ Demo
 
 ```bash
-# Clone to a permanent home — NOT inside a project you want to track
-git clone <repo-url> ~/tools/contextai-cli
-cd ~/tools/contextai-cli
+# Make changes
+git commit -m "add auth module"
+
+# aicontext runs automatically
+✔ Updated context.md (3 files changed)
+
+# View context
+aicontext show
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install globally
+
+```bash
+git clone <repo-url> ~/tools/aicontext
+cd ~/tools/aicontext
 pip install -e .
 
-# Optional: file-watching support
+# Optional (file watching)
 pip install -e ".[watch]"
 
 # Verify
 aicontext --help
 ```
 
-> `aicontext` is now a global command available in every terminal session, just like `git` or `pip`. The source code stays in `~/tools/contextai-cli` and is never copied into your projects.
+> `aicontext` is now available globally like `git` or `pip`.
 
-### 2. Set up in any project you want to track
+---
+
+### 2. Initialize in any project
 
 ```bash
-cd /path/to/your-project   # any existing git repo
-aicontext init             # creates .aicontext.env + installs post-commit hook
+cd /path/to/your-project
+aicontext init
 ```
 
-Edit `.aicontext.env` and set your key:
+Edit `.aicontext.env`:
 
 ```env
-GROQ_API_KEY=gsk_...
+GROQ_API_KEY=your_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 LLM_PROVIDER=groq
 ```
 
-> `.aicontext.env` is intentionally separate from your project's `.env` so there is no variable clash. It is git-ignored automatically.
+---
 
-### 3. Generate the first context
+### 3. Generate initial context
 
 ```bash
-aicontext update --scan   # full project scan (first time)
+aicontext update --scan
 ```
 
-After that, every `git commit` triggers an automatic incremental update.
+After this, every `git commit` triggers automatic updates.
 
-### What gets added to each project
+---
+
+## 📁 What gets added to your project
 
 ```
 your-project/
-  .aicontext.env          ← your API key config  (git-ignored)
-  .git/hooks/post-commit  ← auto-update hook
-  context.json            ← generated context    (commit this)
-  context.md              ← generated context    (commit this)
-
-  # all your own code is untouched
+  .aicontext.env          # API config (git-ignored)
+  .git/hooks/post-commit  # automation hook
+  context.json            # machine-readable (commit this)
+  context.md              # human-readable (commit this)
 ```
 
-The aicontext source code (`~/tools/contextai-cli`) is **never copied** into your projects.
+✔ Your project code is untouched
+✔ Tool source is never copied into your project
 
 ---
 
-## Commands
+## 🧠 Using with LLMs
 
-### `aicontext init`
-Create `.aicontext.env` from the example file and install the git post-commit hook.
-
-```bash
-aicontext init           # safe — skips files that already exist
-aicontext init --force   # overwrite existing config and hook
-```
-
-### `aicontext update`
-Update `context.json` and `context.md` from the latest git changes.
-
-```bash
-aicontext update          # incremental — only processes files changed in last commit
-aicontext update --scan   # full project scan (use this the first time)
-aicontext update -v       # verbose output
-```
-
-### `aicontext watch`
-Auto-update context whenever a file is saved (requires `watchdog`).
-
-```bash
-aicontext watch                # default 20 s debounce
-aicontext watch --debounce 5   # re-run at most every 5 s
-```
-
-### `aicontext show`
-Print the current context to stdout.
-
-```bash
-aicontext show               # prints context.md (human-readable)
-aicontext show --format json # prints context.json (machine-readable)
-```
-
-### `aicontext clean`
-Remove generated files (`context.json`, `context.md`) and optionally config + git hook. Source code is untouched.
-
-```bash
-aicontext clean          # removes context.json + context.md (asks for confirmation)
-aicontext clean -y       # skip confirmation prompt
-aicontext clean --all    # also removes .aicontext.env and the git hook
-aicontext clean --all -y # non-interactive full cleanup
-```
-
-### `aicontext ignore`
-Add aicontext's own source files to `.gitignore` so they are excluded from git without being deleted. Useful when you want to keep the tool working locally but not commit its source into your project.
-
-```bash
-aicontext ignore   # appends aicontext source entries to .gitignore
-```
-
-### `aicontext delete`
-Remove all aicontext-added files from the **current project** (generated files + config + git hook). Your project's own code and the aicontext source in `~/tools/contextai-cli` are **never touched**.
-
-```bash
-aicontext delete      # shows what will be deleted, asks for confirmation
-aicontext delete -y   # non-interactive, no prompt
-```
-
-> This command is blocked if you run it inside the aicontext source repo itself.
-
-To also uninstall the CLI globally:
-
-```bash
-pip uninstall aicontext
-```
-
----
-
-## Output files
-
-| File | Purpose |
-|---|---|
-| `context.json` | Machine-readable — paste into LLM system prompts |
-| `context.md` | Human-readable — quick project overview |
-
-Both files are updated incrementally — unchanged modules are never re-sent to the LLM.
-
----
-
-## Using with an LLM
-
-Paste `context.md` at the top of your prompt:
+### Option 1: Manual prompt
 
 ```
 <context>
 [paste context.md here]
 </context>
 
-Now help me add a feature to the auth module...
-```
-
-Or use `context.json` programmatically:
-
-```python
-import json
-ctx = json.load(open("context.json"))
-system_prompt = f"Project: {ctx['summary']}\nModules: {json.dumps(ctx['modules'])}"
+Now help me modify the auth module...
 ```
 
 ---
 
-## Local LLM (Ollama)
+### Option 2: Programmatic
 
-Switch to a local model by editing `.aicontext.env`:
+```python
+import json
+
+ctx = json.load(open("context.json"))
+system_prompt = f"""
+Project: {ctx['summary']}
+Modules: {json.dumps(ctx['modules'])}
+"""
+```
+
+---
+
+## 🧰 Commands
+
+### `aicontext init`
+
+Initialize config + git hook
+
+```bash
+aicontext init
+aicontext init --force
+```
+
+---
+
+### `aicontext update`
+
+Update context
+
+```bash
+aicontext update
+aicontext update --scan
+aicontext update -v
+```
+
+---
+
+### `aicontext watch`
+
+Auto-update on file save
+
+```bash
+aicontext watch
+aicontext watch --debounce 5
+```
+
+---
+
+### `aicontext show`
+
+View current context
+
+```bash
+aicontext show
+aicontext show --format json
+```
+
+---
+
+### `aicontext clean`
+
+Remove generated files
+
+```bash
+aicontext clean
+aicontext clean -y
+aicontext clean --all
+```
+
+---
+
+### `aicontext delete`
+
+Remove everything from current project
+
+```bash
+aicontext delete
+aicontext delete -y
+```
+
+---
+
+## 🧩 Use Cases
+
+* 🧠 Feed structured context into ChatGPT / Claude
+* 🛠 Build AI-powered dev tools
+* 🔍 Understand large codebases instantly
+* 🤖 Automate code review workflows
+* ⚡ Reduce LLM token usage in production systems
+
+---
+
+## 🧠 Local LLM (Ollama)
 
 ```env
 LLM_PROVIDER=ollama
@@ -193,50 +235,56 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3
 ```
 
-Ollama must be running and the model pulled (`ollama pull llama3`).
+Make sure Ollama is running:
+
+```bash
+ollama pull llama3
+```
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
-All settings live in `.aicontext.env`:
+All settings are in `.aicontext.env`:
 
-| Variable | Default | Description |
-|---|---|---|
-| `LLM_PROVIDER` | `groq` | `groq` or `ollama` |
-| `GROQ_API_KEY` | — | Your Groq Cloud API key (stored in `.aicontext.env`) |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model ID |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
-| `OLLAMA_MODEL` | `llama3` | Ollama model name |
-| `MAX_FILE_SIZE_KB` | `100` | Skip files larger than this |
-| `CONTEXT_FILE` | `context.json` | Output JSON path |
-| `CONTEXT_MD_FILE` | `context.md` | Output Markdown path |
-| `IGNORE_DIRS` | `node_modules,.git,…` | Comma-separated dirs to skip |
+| Variable         | Default                 | Description   |
+| ---------------- | ----------------------- | ------------- |
+| LLM_PROVIDER     | groq                    | groq / ollama |
+| GROQ_API_KEY     | —                       | API key       |
+| GROQ_MODEL       | llama-3.3-70b-versatile | Model         |
+| OLLAMA_BASE_URL  | http://localhost:11434  | Local server  |
+| OLLAMA_MODEL     | llama3                  | Local model   |
+| MAX_FILE_SIZE_KB | 100                     | File limit    |
+| CONTEXT_FILE     | context.json            | Output JSON   |
+| CONTEXT_MD_FILE  | context.md              | Output MD     |
+| IGNORE_DIRS      | node_modules,.git       | Skip dirs     |
 
 ---
 
-## Project structure
+## 🏗 Project Structure
 
 ```
 aicontext/
-├── cli.py              # Typer commands (init, update, watch, show, clean)
-├── orchestrator.py     # Main pipeline logic
-├── config.py           # .env loader
+├── cli.py
+├── orchestrator.py
+├── config.py
 ├── analyzers/
-│   ├── git_diff.py     # git diff / ls-files wrappers
-│   └── file_collector.py  # file walker + safe reader
 ├── llm/
-│   ├── prompt_builder.py  # prompt templates
-│   └── summarizer.py      # Groq / Ollama callers + JSON parser
-└── storage/
-    └── context_writer.py  # load / merge / save context files
-
-scripts/
-└── update_context.py   # standalone runner (git hooks / CI)
+├── storage/
+└── scripts/
 ```
 
 ---
 
-## License
+## 🆚 vs Manual LLM Usage
+
+| Approach        | Token Cost | Effort | Accuracy |
+| --------------- | ---------- | ------ | -------- |
+| Copy-paste code | High       | High   | Medium   |
+| aicontext       | Low        | Low    | High     |
+
+---
+
+## 📄 License
 
 MIT
